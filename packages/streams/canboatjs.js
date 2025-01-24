@@ -18,6 +18,10 @@ const Transform = require('stream').Transform
 const FromPgn = require('@canboat/canboatjs').FromPgn
 const _ = require('lodash')
 
+function pad2 (number) {
+  return number < 10 ? '0' + number : number
+}
+
 function CanboatJs(options) {
   Transform.call(this, {
     objectMode: true,
@@ -56,6 +60,17 @@ CanboatJs.prototype._transform = function (chunk, encoding, done) {
   } else {
     const pgnData = this.fromPgn.parse(chunk)
     if (pgnData) {
+      if (pgnData.pgn == 129029 || pgnData.pgn == 129033) {
+        let [year, month, day] = pgnData.fields.Date.split('.').map(Number)
+        if (year < 2020) {
+          // Create a date object from the extracted values
+          let date = new Date(Date.UTC(year, month - 1, day))
+          // Add 7168 days to the date (1024 weeks)
+          date.setDate(date.getDate() + 7168)
+          // Update the value with the new date
+          pgnData.fields.Date = `${date.getUTCFullYear()}.${pad2(date.getUTCMonth() + 1)}.${pad2(date.getUTCDate())}`
+        }
+      }
       this.push(pgnData)
       this.app.emit(this.analyzerOutEvent, pgnData)
     } else {
